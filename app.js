@@ -1,8 +1,12 @@
-const API_URL =
-  "https://5ecvq3d6ri.execute-api.eu-west-2.amazonaws.com/api/sheet/hanzi/realities";
+const API_BASE =
+  "https://5ecvq3d6ri.execute-api.eu-west-2.amazonaws.com/api/sheet/hanzi/";
+const DECK_OPTIONS = [
+  { id: "realities", label: "Realities" },
+  { id: "verses", label: "Verses" },
+];
+const DEFAULT_DECK = "realities";
 const DB_NAME = "flashback-db";
 const DB_STORE = "deck";
-const DB_KEY = "latest";
 
 const state = {
   rawDeck: [],
@@ -11,6 +15,7 @@ const state = {
   flipped: false,
   shuffle: false,
   usingCache: false,
+  deckId: DEFAULT_DECK,
 };
 
 const elements = {
@@ -24,6 +29,7 @@ const elements = {
   flipBtn: document.getElementById("flipBtn"),
   shuffleToggle: document.getElementById("shuffleToggle"),
   reloadBtn: document.getElementById("reloadBtn"),
+  deckSelect: document.getElementById("deckSelect"),
 };
 
 const storage = {
@@ -100,6 +106,28 @@ function normalizeDeck(data) {
   return [];
 }
 
+function normalizeDeckId(value) {
+  return DECK_OPTIONS.some((deck) => deck.id === value)
+    ? value
+    : DEFAULT_DECK;
+}
+
+function getDeckUrl(deckId) {
+  return `${API_BASE}${deckId}`;
+}
+
+function getCacheKey(deckId) {
+  return `deck:${deckId}`;
+}
+
+function getIndexKey(deckId) {
+  return `flashback:index:${deckId}`;
+}
+
+function getFlippedKey(deckId) {
+  return `flashback:flipped:${deckId}`;
+}
+
 function shuffleDeck(deck) {
   const copy = [...deck];
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -112,10 +140,10 @@ function shuffleDeck(deck) {
 function applyDeck(deck, options = { useSavedIndex: true }) {
   state.rawDeck = deck;
   state.deck = state.shuffle ? shuffleDeck(deck) : deck;
-  const savedIndex = storage.get("flashback:index", 0);
+  const savedIndex = storage.get(getIndexKey(state.deckId), 0);
   state.index = options.useSavedIndex ? savedIndex : 0;
   state.index = Math.min(state.index, Math.max(state.deck.length - 1, 0));
-  state.flipped = storage.get("flashback:flipped", false);
+  state.flipped = storage.get(getFlippedKey(state.deckId), false);
   renderCard();
 }
 
@@ -133,8 +161,8 @@ function renderCard() {
   elements.progress.textContent = `Card ${state.index + 1} / ${state.deck.length}`;
   elements.card.classList.toggle("back", state.flipped);
 
-  storage.set("flashback:index", state.index);
-  storage.set("flashback:flipped", state.flipped);
+  storage.set(getIndexKey(state.deckId), state.index);
+  storage.set(getFlippedKey(state.deckId), state.flipped);
 }
 
 function showStatus() {
@@ -147,20 +175,20 @@ function showBanner(show) {
   elements.banner.hidden = !show;
 }
 
-async function fetchDeck() {
+async function fetchDeck(deckId = state.deckId) {
   elements.cardText.textContent = "Loading…";
   showBanner(false);
   state.usingCache = false;
   try {
-    const response = await fetch(API_URL, { mode: "cors" });
+    const response = await fetch(getDeckUrl(deckId), { mode: "cors" });
     if (!response.ok) throw new Error("Network error");
     const data = await response.json();
     const deck = normalizeDeck(data);
     if (!deck.length) throw new Error("Empty deck");
-    await dbSet(DB_KEY, deck);
+    await dbSet(getCacheKey(deckId), deck);
     applyDeck(deck, { useSavedIndex: true });
   } catch {
-    const cachedDeck = await dbGet(DB_KEY);
+    const cachedDeck = await dbGet(getCacheKey(deckId));
     if (cachedDeck && cachedDeck.length) {
       state.usingCache = true;
       showBanner(true);
@@ -224,6 +252,10 @@ function registerServiceWorker() {
 }
 
 function init() {
+  state.deckId = normalizeDeckId(
+    storage.get("flashback:deckId", DEFAULT_DECK),
+  );
+  elements.deckSelect.value = state.deckId;
   state.shuffle = storage.get("flashback:shuffle", false);
   elements.shuffleToggle.checked = state.shuffle;
   showStatus();
@@ -238,6 +270,12 @@ function init() {
     state.shuffle = event.target.checked;
     storage.set("flashback:shuffle", state.shuffle);
     applyDeck(state.rawDeck, { useSavedIndex: false });
+  });
+  elements.deckSelect.addEventListener("change", async (event) => {
+    const selected = normalizeDeckId(event.target.value);
+    state.deckId = selected;
+    storage.set("flashback:deckId", selected);
+    await fetchDeck(selected);
   });
   elements.reloadBtn.addEventListener("click", async () => {
     await fetchDeck();
