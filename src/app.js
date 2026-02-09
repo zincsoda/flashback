@@ -1,3 +1,5 @@
+import "./styles.css";
+
 const API_BASE =
   "https://5ecvq3d6ri.execute-api.eu-west-2.amazonaws.com/api/sheet/hanzi/";
 const DECK_OPTIONS = [
@@ -278,7 +280,7 @@ function attachSwipeHandlers() {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js");
+    navigator.serviceWorker.register("/sw.js");
   }
 }
 

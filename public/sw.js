@@ -1,13 +1,11 @@
 const CACHE_NAME = "flashback-shell-v1";
 const API_CACHE = "flashback-api-v1";
 const SHELL_ASSETS = [
-  "./",
-  "index.html",
-  "styles.css",
-  "app.js",
-  "manifest.webmanifest",
-  "icons/icon-192.svg",
-  "icons/icon-512.svg",
+  "/",
+  "/index.html",
+  "/manifest.webmanifest",
+  "/icons/icon-192.svg",
+  "/icons/icon-512.svg",
 ];
 
 self.addEventListener("install", (event) => {
