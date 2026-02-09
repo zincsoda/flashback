@@ -22,8 +22,16 @@ const elements = {
   card: document.getElementById("card"),
   cardText: document.getElementById("cardText"),
   progress: document.getElementById("progressText"),
-  status: document.getElementById("statusText"),
   banner: document.getElementById("banner"),
+  infoBtn: document.getElementById("infoBtn"),
+  infoBackdrop: document.getElementById("infoBackdrop"),
+  infoPanel: document.getElementById("infoPanel"),
+  infoCloseBtn: document.getElementById("infoCloseBtn"),
+  infoOnline: document.getElementById("infoOnline"),
+  infoDeck: document.getElementById("infoDeck"),
+  infoCount: document.getElementById("infoCount"),
+  infoCache: document.getElementById("infoCache"),
+  infoShuffle: document.getElementById("infoShuffle"),
   prevBtn: document.getElementById("prevBtn"),
   nextBtn: document.getElementById("nextBtn"),
   flipBtn: document.getElementById("flipBtn"),
@@ -145,6 +153,7 @@ function applyDeck(deck, options = { useSavedIndex: true }) {
   state.index = Math.min(state.index, Math.max(state.deck.length - 1, 0));
   state.flipped = storage.get(getFlippedKey(state.deckId), false);
   renderCard();
+  updateInfoStats();
 }
 
 function renderCard() {
@@ -152,6 +161,7 @@ function renderCard() {
     elements.cardText.textContent = "No cards available";
     elements.progress.textContent = "Card 0 / 0";
     elements.card.classList.remove("back");
+    updateInfoStats();
     return;
   }
 
@@ -163,12 +173,32 @@ function renderCard() {
 
   storage.set(getIndexKey(state.deckId), state.index);
   storage.set(getFlippedKey(state.deckId), state.flipped);
+  updateInfoStats();
 }
 
 function showStatus() {
   const online = navigator.onLine;
-  elements.status.textContent = online ? "Online" : "Offline";
-  elements.status.style.color = online ? "#38bdf8" : "#f87171";
+  elements.infoOnline.textContent = online ? "Online" : "Offline";
+  elements.infoOnline.style.color = online ? "#38bdf8" : "#f87171";
+}
+
+function updateInfoStats() {
+  const deckLabel =
+    DECK_OPTIONS.find((deck) => deck.id === state.deckId)?.label ??
+    state.deckId;
+  elements.infoDeck.textContent = deckLabel;
+  elements.infoCount.textContent = `${state.deck.length}`;
+  elements.infoCache.textContent = state.usingCache ? "Yes" : "No";
+  elements.infoShuffle.textContent = state.shuffle ? "On" : "Off";
+}
+
+function setInfoOpen(open) {
+  elements.infoPanel.hidden = !open;
+  elements.infoBackdrop.hidden = !open;
+  elements.infoBtn.setAttribute("aria-expanded", String(open));
+  if (open) {
+    updateInfoStats();
+  }
 }
 
 function showBanner(show) {
@@ -196,6 +226,7 @@ async function fetchDeck(deckId = state.deckId) {
     } else {
       elements.cardText.textContent = "Unable to load deck";
       elements.progress.textContent = "Card 0 / 0";
+      updateInfoStats();
     }
   }
 }
@@ -261,6 +292,10 @@ function init() {
   showStatus();
   fetchDeck();
   registerServiceWorker();
+
+  elements.infoBtn.addEventListener("click", () => setInfoOpen(true));
+  elements.infoBackdrop.addEventListener("click", () => setInfoOpen(false));
+  elements.infoCloseBtn.addEventListener("click", () => setInfoOpen(false));
 
   elements.card.addEventListener("click", flipCard);
   elements.prevBtn.addEventListener("click", prevCard);

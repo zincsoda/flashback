@@ -45,9 +45,81 @@ body {
   font-size: 1.1rem;
 }
 
-.status {
-  font-size: 0.9rem;
+.info-btn {
+  border: 1px solid #334155;
+  background: transparent;
+  color: #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.info-btn:active {
+  transform: scale(0.98);
+}
+
+.info-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  z-index: 20;
+}
+
+.info-panel {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  background: var(--panel);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  z-index: 30;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.info-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.info-close {
+  border: none;
+  background: transparent;
   color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.info-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.95rem;
+}
+
+.info-row dt {
+  color: var(--muted);
+}
+
+.info-row dd {
+  margin: 0;
+  font-weight: 600;
 }
 
 .banner {

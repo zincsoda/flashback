@@ -19,10 +19,56 @@
     <div id="app">
       <header class="topbar">
         <div class="title">Flashback</div>
-        <div class="status" id="statusText">Online</div>
+        <button
+          id="infoBtn"
+          class="info-btn"
+          aria-expanded="false"
+          aria-controls="infoPanel"
+        >
+          Info
+        </button>
       </header>
 
       <div id="banner" class="banner" hidden>Offline / using cached deck</div>
+
+      <div id="infoBackdrop" class="info-backdrop" hidden></div>
+      <aside
+        id="infoPanel"
+        class="info-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="infoTitle"
+        hidden
+      >
+        <div class="info-header">
+          <div id="infoTitle" class="info-title">App info</div>
+          <button id="infoCloseBtn" class="info-close" aria-label="Close info">
+            Close
+          </button>
+        </div>
+        <dl class="info-list">
+          <div class="info-row">
+            <dt>Online</dt>
+            <dd id="infoOnline">—</dd>
+          </div>
+          <div class="info-row">
+            <dt>Deck</dt>
+            <dd id="infoDeck">—</dd>
+          </div>
+          <div class="info-row">
+            <dt>Cards</dt>
+            <dd id="infoCount">—</dd>
+          </div>
+          <div class="info-row">
+            <dt>Using cache</dt>
+            <dd id="infoCache">—</dd>
+          </div>
+          <div class="info-row">
+            <dt>Shuffle</dt>
+            <dd id="infoShuffle">—</dd>
+          </div>
+        </dl>
+      </aside>
 
       <main class="main">
         <div class="progress" id="progressText">Card 0 / 0</div>
