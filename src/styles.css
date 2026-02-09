@@ -225,17 +225,45 @@ body {
 
 .deck-picker select {
   border: 1px solid #334155;
-  background: #111827;
+  background: #0f172a;
   color: #e2e8f0;
-  padding: 10px 12px;
+  padding: 10px 40px 10px 14px;
   border-radius: 12px;
   font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   color-scheme: dark;
+  appearance: none;
+  background-image: linear-gradient(135deg, transparent 50%, #94a3b8 50%),
+    linear-gradient(225deg, transparent 50%, #94a3b8 50%),
+    linear-gradient(#1f2937, #1f2937);
+  background-position:
+    calc(100% - 18px) calc(50% - 3px),
+    calc(100% - 13px) calc(50% - 3px),
+    calc(100% - 34px) 50%;
+  background-size: 6px 6px, 6px 6px, 1px 18px;
+  background-repeat: no-repeat;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.deck-picker select:hover {
+  border-color: #475569;
 }
 
 .deck-picker select:focus {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+}
+
+.deck-picker select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.deck-picker select option {
+  color: #0f172a;
 }
 
 .toggle input {
