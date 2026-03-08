@@ -336,7 +336,7 @@ function showStatus() {
   elements.infoOnline.style.color = online ? "#38bdf8" : "#f87171";
 }
 
-function updateInfoStats() {
+async function updateInfoStats() {
   const deckLabel =
     DECK_OPTIONS.find((deck) => deck.id === state.deckId)?.label ??
     state.deckId;
@@ -346,8 +346,18 @@ function updateInfoStats() {
   elements.infoLastSynced.textContent = formatLastSynced(lastSynced);
   elements.infoTimeSinceSync.textContent = formatTimeSinceSync(lastSynced);
   elements.infoShuffle.textContent = state.shuffle ? "On" : "Off";
-  elements.infoVersion.textContent =
-    typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "—";
+  if (import.meta.env.DEV) {
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/__version__`);
+      elements.infoVersion.textContent = res.ok ? await res.text() : "—";
+    } catch {
+      elements.infoVersion.textContent = "—";
+    }
+  } else {
+    elements.infoVersion.textContent =
+      typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "—";
+  }
 }
 
 function setInfoOpen(open) {
@@ -355,7 +365,7 @@ function setInfoOpen(open) {
   elements.infoBackdrop.hidden = !open;
   elements.infoBtn.setAttribute("aria-expanded", String(open));
   if (open) {
-    updateInfoStats();
+    void updateInfoStats();
   }
 }
 

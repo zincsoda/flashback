@@ -22,4 +22,22 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
+  plugins: [
+    {
+      name: "version-endpoint",
+      enforce: "pre",
+      configureServer(server) {
+        const base = server.config.base?.replace(/\/$/, "") || "";
+        server.middlewares.use((req, res, next) => {
+          const path = base ? req.url?.replace(base, "") || req.url : req.url;
+          if (path === "/__version__" || path === "__version__") {
+            res.setHeader("Content-Type", "text/plain");
+            res.end(getGitVersion() ?? "—");
+            return;
+          }
+          next();
+        });
+      },
+    },
+  ],
 });
