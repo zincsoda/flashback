@@ -10,6 +10,7 @@ let DECK_OPTIONS = [];
 let DEFAULT_DECK = "realities";
 const DB_NAME = "flashback-db";
 const DB_STORE = "deck";
+const API_DICT_CACHE_KEY = "api_dict";
 
 const state = {
   rawDeck: [],
@@ -133,26 +134,55 @@ function humanizeLabel(apiKey) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-async function fetchDeckOptions() {
+function buildDeckOptionsFromRaw(data) {
+  if (!Array.isArray(data) || !data.length) return null;
+  return data.map(({ api_key, api_url }) => ({
+    id: api_key,
+    label: humanizeLabel(api_key),
+    url: api_url,
+  }));
+}
+
+function getFallbackDeckOptions() {
+  return [
+    { id: "realities", label: "Realities", url: `${API_BASE}flashback/realities/` },
+    { id: "verses", label: "Verses", url: `${API_BASE}flashback/verses/` },
+  ];
+}
+
+function applyDeckOptions(options) {
+  DECK_OPTIONS = options;
+  DEFAULT_DECK = DECK_OPTIONS[0]?.id ?? "realities";
+  populateDeckSelect();
+}
+
+/** Load deck options from cache; returns null if none. */
+async function getCachedDeckOptions() {
+  const raw = await dbGet(API_DICT_CACHE_KEY);
+  return buildDeckOptionsFromRaw(raw);
+}
+
+/** Fetch api_dict from network, cache it, update DECK_OPTIONS. Returns new options or null. */
+async function fetchDeckOptionsFromNetwork() {
   try {
     const response = await fetch(API_DICT_URL, { mode: "cors" });
     if (!response.ok) throw new Error("API dict unavailable");
     const data = await response.json();
     if (!Array.isArray(data) || !data.length) throw new Error("No decks");
-    DECK_OPTIONS = data.map(({ api_key, api_url }) => ({
-      id: api_key,
-      label: humanizeLabel(api_key),
-      url: api_url,
-    }));
-    DEFAULT_DECK = DECK_OPTIONS[0].id;
-    return DECK_OPTIONS;
+    await dbSet(API_DICT_CACHE_KEY, data);
+    const options = buildDeckOptionsFromRaw(data);
+    if (options) {
+      DECK_OPTIONS = options;
+      DEFAULT_DECK = DECK_OPTIONS[0].id;
+    }
+    return options;
   } catch {
-    DECK_OPTIONS = [
-      { id: "realities", label: "Realities", url: `${API_BASE}flashback/realities/` },
-      { id: "verses", label: "Verses", url: `${API_BASE}flashback/verses/` },
-    ];
+    const cached = await getCachedDeckOptions();
+    if (cached) return cached;
+    const fallback = getFallbackDeckOptions();
+    DECK_OPTIONS = fallback;
     DEFAULT_DECK = DECK_OPTIONS[0].id;
-    return DECK_OPTIONS;
+    return fallback;
   }
 }
 
@@ -247,7 +277,27 @@ function showBanner(show) {
   elements.banner.hidden = !show;
 }
 
-async function fetchDeck(deckId = state.deckId) {
+/**
+ * Load deck: show cached immediately if backgroundRefresh and cache exists,
+ * then optionally fetch in background and update. Otherwise fetch and show loading.
+ * @param {string} [deckId] - deck to load (defaults to state.deckId)
+ * @param {{ backgroundRefresh?: boolean }} [options] - if true, use cache first then refresh in background
+ */
+async function fetchDeck(deckId = state.deckId, options = {}) {
+  const { backgroundRefresh = false } = options;
+  const cacheKey = getCacheKey(deckId);
+
+  if (backgroundRefresh) {
+    const cachedDeck = await dbGet(cacheKey);
+    if (cachedDeck && cachedDeck.length) {
+      state.usingCache = true;
+      showBanner(true);
+      applyDeck(cachedDeck, { useSavedIndex: true });
+      refreshDeckInBackground(deckId);
+      return;
+    }
+  }
+
   elements.cardText.textContent = "Loading…";
   showBanner(false);
   state.usingCache = false;
@@ -257,10 +307,10 @@ async function fetchDeck(deckId = state.deckId) {
     const data = await response.json();
     const deck = normalizeDeck(data);
     if (!deck.length) throw new Error("Empty deck");
-    await dbSet(getCacheKey(deckId), deck);
+    await dbSet(cacheKey, deck);
     applyDeck(deck, { useSavedIndex: true });
   } catch {
-    const cachedDeck = await dbGet(getCacheKey(deckId));
+    const cachedDeck = await dbGet(cacheKey);
     if (cachedDeck && cachedDeck.length) {
       state.usingCache = true;
       showBanner(true);
@@ -270,6 +320,25 @@ async function fetchDeck(deckId = state.deckId) {
       elements.progress.textContent = "Card 0 / 0";
       updateInfoStats();
     }
+  }
+}
+
+/** Fetch deck from network in background and update UI when done. */
+async function refreshDeckInBackground(deckId) {
+  try {
+    const response = await fetch(getDeckUrl(deckId), { mode: "cors" });
+    if (!response.ok) return;
+    const data = await response.json();
+    const deck = normalizeDeck(data);
+    if (!deck.length) return;
+    await dbSet(getCacheKey(deckId), deck);
+    if (state.deckId === deckId) {
+      state.usingCache = false;
+      showBanner(false);
+      applyDeck(deck, { useSavedIndex: true });
+    }
+  } catch {
+    // Keep showing cached deck
   }
 }
 
@@ -326,8 +395,10 @@ function registerServiceWorker() {
 }
 
 async function init() {
-  await fetchDeckOptions();
-  populateDeckSelect();
+  // Use cached api_dict immediately so the user can use the app without waiting
+  let options = await getCachedDeckOptions();
+  if (!options) options = getFallbackDeckOptions();
+  applyDeckOptions(options);
 
   state.deckId = normalizeDeckId(
     storage.get("flashback:deckId", DEFAULT_DECK),
@@ -336,7 +407,19 @@ async function init() {
   state.shuffle = storage.get("flashback:shuffle", false);
   elements.shuffleToggle.checked = state.shuffle;
   showStatus();
-  fetchDeck();
+
+  // Show cached deck immediately if we have it, then refresh in background
+  fetchDeck(state.deckId, { backgroundRefresh: true });
+
+  // Refresh api_dict in background and update dropdown when done
+  fetchDeckOptionsFromNetwork().then((newOptions) => {
+    if (newOptions && newOptions.length) {
+      applyDeckOptions(newOptions);
+      state.deckId = normalizeDeckId(state.deckId);
+      elements.deckSelect.value = state.deckId;
+    }
+  });
+
   registerServiceWorker();
 
   elements.infoBtn.addEventListener("click", () => setInfoOpen(true));
@@ -356,7 +439,7 @@ async function init() {
     const selected = normalizeDeckId(event.target.value);
     state.deckId = selected;
     storage.set("flashback:deckId", selected);
-    await fetchDeck(selected);
+    await fetchDeck(selected, { backgroundRefresh: true });
   });
   elements.reloadBtn.addEventListener("click", async () => {
     await fetchDeck();
