@@ -36,6 +36,7 @@ const elements = {
   infoCount: document.getElementById("infoCount"),
   infoCache: document.getElementById("infoCache"),
   infoShuffle: document.getElementById("infoShuffle"),
+  infoVersion: document.getElementById("infoVersion"),
   prevBtn: document.getElementById("prevBtn"),
   nextBtn: document.getElementById("nextBtn"),
   flipBtn: document.getElementById("flipBtn"),
@@ -262,6 +263,8 @@ function updateInfoStats() {
   elements.infoCount.textContent = `${state.deck.length}`;
   elements.infoCache.textContent = state.usingCache ? "Yes" : "No";
   elements.infoShuffle.textContent = state.shuffle ? "On" : "Off";
+  elements.infoVersion.textContent =
+    typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "—";
 }
 
 function setInfoOpen(open) {
