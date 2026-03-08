@@ -34,6 +34,7 @@ const elements = {
   infoDeck: document.getElementById("infoDeck"),
   infoCount: document.getElementById("infoCount"),
   infoLastSynced: document.getElementById("infoLastSynced"),
+  infoTimeSinceSync: document.getElementById("infoTimeSinceSync"),
   infoShuffle: document.getElementById("infoShuffle"),
   infoVersion: document.getElementById("infoVersion"),
   prevBtn: document.getElementById("prevBtn"),
@@ -218,8 +219,27 @@ function formatLastSynced(isoString) {
     const d = new Date(isoString);
     return d.toLocaleString(undefined, {
       dateStyle: "medium",
-      timeStyle: "short",
+      timeStyle: "medium",
     });
+  } catch {
+    return "—";
+  }
+}
+
+function formatTimeSinceSync(isoString) {
+  if (!isoString) return "—";
+  try {
+    const d = new Date(isoString);
+    const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (sec < 0) return "—";
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+    if (sec < 60) return rtf.format(-sec, "second");
+    const min = Math.floor(sec / 60);
+    if (min < 60) return rtf.format(-min, "minute");
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return rtf.format(-hr, "hour");
+    const day = Math.floor(hr / 24);
+    return rtf.format(-day, "day");
   } catch {
     return "—";
   }
@@ -279,6 +299,7 @@ function updateInfoStats() {
   elements.infoCount.textContent = `${state.deck.length}`;
   const lastSynced = storage.get(getLastSyncedKey(state.deckId), null);
   elements.infoLastSynced.textContent = formatLastSynced(lastSynced);
+  elements.infoTimeSinceSync.textContent = formatTimeSinceSync(lastSynced);
   elements.infoShuffle.textContent = state.shuffle ? "On" : "Off";
   elements.infoVersion.textContent =
     typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "—";
