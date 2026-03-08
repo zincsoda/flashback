@@ -197,6 +197,51 @@ function populateDeckSelect() {
   }
 }
 
+/**
+ * Read all deck ids from URL search params. Supports both "deck" and "api_key" (multiple values allowed).
+ * @returns {string[]} The deck ids to allow; empty means no restriction (all decks).
+ */
+function getDeckIdsFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const deck = params.getAll("deck");
+  const apiKey = params.getAll("api_key");
+  const ids = [...deck, ...apiKey].filter(Boolean);
+  return [...new Set(ids)];
+}
+
+/**
+ * First deck id from URL (for initial selection). Uses getDeckIdsFromUrl()[0] or null.
+ * @returns {string|null}
+ */
+function getDeckIdFromUrl() {
+  const ids = getDeckIdsFromUrl();
+  return ids.length ? ids[0] : null;
+}
+
+/**
+ * Filter (or build) deck options to only those allowed by URL params.
+ * If an allowed id is not in the full list, add it with a constructed URL.
+ * @param {{ id: string, label: string, url: string }[]} options - full options from api_dict/cache/fallback
+ * @param {string[]} allowedIds - from getDeckIdsFromUrl(); empty = no filter
+ * @returns {{ id: string, label: string, url: string }[]}
+ */
+function filterOptionsByAllowedIds(options, allowedIds) {
+  if (!allowedIds.length) return options;
+  const optionMap = new Map(options.map((o) => [o.id, o]));
+  const result = [];
+  for (const id of allowedIds) {
+    const existing = optionMap.get(id);
+    result.push(
+      existing ?? {
+        id,
+        label: humanizeLabel(id),
+        url: `${API_BASE}${id}`,
+      },
+    );
+  }
+  return result;
+}
+
 function getCacheKey(deckId) {
   return `deck:${deckId}`;
 }
@@ -430,14 +475,22 @@ function registerServiceWorker() {
 }
 
 async function init() {
+  const allowedDeckIds = getDeckIdsFromUrl();
+
   // Use cached api_dict immediately so the user can use the app without waiting
   let options = await getCachedDeckOptions();
   if (!options) options = getFallbackDeckOptions();
+  options = filterOptionsByAllowedIds(options, allowedDeckIds);
   applyDeckOptions(options);
 
-  state.deckId = normalizeDeckId(
-    storage.get("flashback:deckId", DEFAULT_DECK),
-  );
+  const urlDeckId = getDeckIdFromUrl();
+  const savedDeckId = storage.get("flashback:deckId", DEFAULT_DECK);
+  if (urlDeckId && DECK_OPTIONS.some((d) => d.id === urlDeckId)) {
+    state.deckId = urlDeckId;
+    storage.set("flashback:deckId", urlDeckId);
+  } else {
+    state.deckId = normalizeDeckId(savedDeckId);
+  }
   elements.deckSelect.value = state.deckId;
   state.shuffle = storage.get("flashback:shuffle", false);
   elements.shuffleToggle.checked = state.shuffle;
@@ -446,12 +499,21 @@ async function init() {
   // Show cached deck immediately if we have it, then refresh in background
   fetchDeck(state.deckId, { backgroundRefresh: true });
 
-  // Refresh api_dict in background and update dropdown when done
+  // Refresh api_dict in background; when URL params specify decks, only those are kept in the list
   fetchDeckOptionsFromNetwork().then((newOptions) => {
     if (newOptions && newOptions.length) {
-      applyDeckOptions(newOptions);
-      state.deckId = normalizeDeckId(state.deckId);
-      elements.deckSelect.value = state.deckId;
+      const filtered = filterOptionsByAllowedIds(newOptions, allowedDeckIds);
+      applyDeckOptions(filtered);
+      const urlDeckId = getDeckIdFromUrl();
+      if (urlDeckId && DECK_OPTIONS.some((d) => d.id === urlDeckId)) {
+        state.deckId = urlDeckId;
+        storage.set("flashback:deckId", urlDeckId);
+        elements.deckSelect.value = urlDeckId;
+        fetchDeck(urlDeckId, { backgroundRefresh: true });
+      } else {
+        state.deckId = normalizeDeckId(state.deckId);
+        elements.deckSelect.value = state.deckId;
+      }
     }
   });
 
