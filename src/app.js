@@ -26,7 +26,6 @@ const elements = {
   card: document.getElementById("card"),
   cardText: document.getElementById("cardText"),
   progress: document.getElementById("progressText"),
-  banner: document.getElementById("banner"),
   infoBtn: document.getElementById("infoBtn"),
   infoBackdrop: document.getElementById("infoBackdrop"),
   infoPanel: document.getElementById("infoPanel"),
@@ -34,7 +33,7 @@ const elements = {
   infoOnline: document.getElementById("infoOnline"),
   infoDeck: document.getElementById("infoDeck"),
   infoCount: document.getElementById("infoCount"),
-  infoCache: document.getElementById("infoCache"),
+  infoLastSynced: document.getElementById("infoLastSynced"),
   infoShuffle: document.getElementById("infoShuffle"),
   infoVersion: document.getElementById("infoVersion"),
   prevBtn: document.getElementById("prevBtn"),
@@ -209,6 +208,23 @@ function getFlippedKey(deckId) {
   return `flashback:flipped:${deckId}`;
 }
 
+function getLastSyncedKey(deckId) {
+  return `flashback:lastSynced:${deckId}`;
+}
+
+function formatLastSynced(isoString) {
+  if (!isoString) return "—";
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return "—";
+  }
+}
+
 function shuffleDeck(deck) {
   const copy = [...deck];
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -261,7 +277,8 @@ function updateInfoStats() {
     state.deckId;
   elements.infoDeck.textContent = deckLabel;
   elements.infoCount.textContent = `${state.deck.length}`;
-  elements.infoCache.textContent = state.usingCache ? "Yes" : "No";
+  const lastSynced = storage.get(getLastSyncedKey(state.deckId), null);
+  elements.infoLastSynced.textContent = formatLastSynced(lastSynced);
   elements.infoShuffle.textContent = state.shuffle ? "On" : "Off";
   elements.infoVersion.textContent =
     typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "—";
@@ -274,10 +291,6 @@ function setInfoOpen(open) {
   if (open) {
     updateInfoStats();
   }
-}
-
-function showBanner(show) {
-  elements.banner.hidden = !show;
 }
 
 /**
@@ -294,7 +307,6 @@ async function fetchDeck(deckId = state.deckId, options = {}) {
     const cachedDeck = await dbGet(cacheKey);
     if (cachedDeck && cachedDeck.length) {
       state.usingCache = true;
-      showBanner(true);
       applyDeck(cachedDeck, { useSavedIndex: true });
       refreshDeckInBackground(deckId);
       return;
@@ -302,7 +314,6 @@ async function fetchDeck(deckId = state.deckId, options = {}) {
   }
 
   elements.cardText.textContent = "Loading…";
-  showBanner(false);
   state.usingCache = false;
   try {
     const response = await fetch(getDeckUrl(deckId), { mode: "cors" });
@@ -311,12 +322,12 @@ async function fetchDeck(deckId = state.deckId, options = {}) {
     const deck = normalizeDeck(data);
     if (!deck.length) throw new Error("Empty deck");
     await dbSet(cacheKey, deck);
+    storage.set(getLastSyncedKey(deckId), new Date().toISOString());
     applyDeck(deck, { useSavedIndex: true });
   } catch {
     const cachedDeck = await dbGet(cacheKey);
     if (cachedDeck && cachedDeck.length) {
       state.usingCache = true;
-      showBanner(true);
       applyDeck(cachedDeck, { useSavedIndex: true });
     } else {
       elements.cardText.textContent = "Unable to load deck";
@@ -335,9 +346,9 @@ async function refreshDeckInBackground(deckId) {
     const deck = normalizeDeck(data);
     if (!deck.length) return;
     await dbSet(getCacheKey(deckId), deck);
+    storage.set(getLastSyncedKey(deckId), new Date().toISOString());
     if (state.deckId === deckId) {
       state.usingCache = false;
-      showBanner(false);
       applyDeck(deck, { useSavedIndex: true });
     }
   } catch {
