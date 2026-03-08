@@ -1,12 +1,13 @@
 import "./styles.css";
 
 const API_BASE =
-  "https://5ecvq3d6ri.execute-api.eu-west-2.amazonaws.com/api/sheet/hanzi/";
-const DECK_OPTIONS = [
-  { id: "realities", label: "Realities" },
-  { id: "verses", label: "Verses" },
-];
-const DEFAULT_DECK = "realities";
+  "https://5ecvq3d6ri.execute-api.eu-west-2.amazonaws.com/api/sheet/";
+const API_DICT_URL =
+  "https://5ecvq3d6ri.execute-api.eu-west-2.amazonaws.com/api/sheet/api_dict/default/";
+
+/** Populated from api_dict on load; each item has { id, label, url }. */
+let DECK_OPTIONS = [];
+let DEFAULT_DECK = "realities";
 const DB_NAME = "flashback-db";
 const DB_STORE = "deck";
 
@@ -117,13 +118,52 @@ function normalizeDeck(data) {
 }
 
 function normalizeDeckId(value) {
-  return DECK_OPTIONS.some((deck) => deck.id === value)
-    ? value
-    : DEFAULT_DECK;
+  if (!DECK_OPTIONS.length) return value || DEFAULT_DECK;
+  return DECK_OPTIONS.some((d) => d.id === value) ? value : DEFAULT_DECK;
 }
 
 function getDeckUrl(deckId) {
-  return `${API_BASE}${deckId}`;
+  const deck = DECK_OPTIONS.find((d) => d.id === deckId);
+  return deck ? deck.url : `${API_BASE}${deckId}`;
+}
+
+function humanizeLabel(apiKey) {
+  return apiKey
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+async function fetchDeckOptions() {
+  try {
+    const response = await fetch(API_DICT_URL, { mode: "cors" });
+    if (!response.ok) throw new Error("API dict unavailable");
+    const data = await response.json();
+    if (!Array.isArray(data) || !data.length) throw new Error("No decks");
+    DECK_OPTIONS = data.map(({ api_key, api_url }) => ({
+      id: api_key,
+      label: humanizeLabel(api_key),
+      url: api_url,
+    }));
+    DEFAULT_DECK = DECK_OPTIONS[0].id;
+    return DECK_OPTIONS;
+  } catch {
+    DECK_OPTIONS = [
+      { id: "realities", label: "Realities", url: `${API_BASE}flashback/realities/` },
+      { id: "verses", label: "Verses", url: `${API_BASE}flashback/verses/` },
+    ];
+    DEFAULT_DECK = DECK_OPTIONS[0].id;
+    return DECK_OPTIONS;
+  }
+}
+
+function populateDeckSelect() {
+  elements.deckSelect.innerHTML = "";
+  for (const deck of DECK_OPTIONS) {
+    const opt = document.createElement("option");
+    opt.value = deck.id;
+    opt.textContent = deck.label;
+    elements.deckSelect.appendChild(opt);
+  }
 }
 
 function getCacheKey(deckId) {
@@ -285,7 +325,10 @@ function registerServiceWorker() {
   }
 }
 
-function init() {
+async function init() {
+  await fetchDeckOptions();
+  populateDeckSelect();
+
   state.deckId = normalizeDeckId(
     storage.get("flashback:deckId", DEFAULT_DECK),
   );
